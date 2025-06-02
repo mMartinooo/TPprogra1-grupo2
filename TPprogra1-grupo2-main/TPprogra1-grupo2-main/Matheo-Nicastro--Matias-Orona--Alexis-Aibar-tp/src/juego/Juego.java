@@ -1,277 +1,160 @@
 package juego;
 
-// Importamos las clases necesarias para manejar gráficos, colores y listas
 import java.awt.Image;
 import java.awt.Color;
 import java.util.ArrayList;
 
-// Importamos las herramientas del framework "entorno" para gráficos y lógica del juego
 import entorno.Herramientas;
 import entorno.Entorno;
 import entorno.InterfaceJuego;
 
-// Clase principal del juego, hereda de InterfaceJuego para integrarse con el framework
 public class Juego extends InterfaceJuego {
-    // **Constantes del juego**: valores fijos que definen reglas y dimensiones
-    // Ancho del menú lateral derecho (donde van los botones y estadísticas)
-    private static final int ANCHO_MENU = 200;
-    // Margen para limitar el movimiento en los bordes de la pantalla
-    private static final int MARGEN = 50;
-    // Límite derecho del área jugable (pantalla de 600 menos el margen)
-    private static final int LIMITE_DERECHO = 600 - MARGEN;
-    // Límite inferior del área jugable (alto de 600 menos el margen)
-    private static final int LIMITE_INFERIOR = 600 - MARGEN;
-    // Cuántos frames dura un hechizo activo en pantalla
-    private static final int DURACION_HECHIZO = 20;
-    // Cada cuántos frames se regenera un punto de energía mágica
-    private static final int FRAMES_REGEN_ENERGIA = 15;
-    // Cuántos frames se muestra el mensaje de oleada (ej: "Oleada 1")
-    private static final int DURACION_MENSAJE_OLEADA = 120;
-    // Máximo de murciélagos que pueden estar en pantalla a la vez
-    private static final int MAX_MURCIELAGOS_EN_PANTALLA = 10;
+    // Constantes que definen parámetros del juego
+    private static final int MARGEN = 50; // Margen de la pantalla para spawn de enemigos
+    private static final int MAX_MURCIELAGOS_EN_PANTALLA = 10; // Máximo de enemigos simultáneos en pantalla
+    private static final int[] MURCIELAGOS_POR_SPAWN = {3, 3, 3, 3, 4}; // Cantidad de murciélagos por spawn por oleada
+    private static final int[] INTERVALOS_SPAWN = {200, 180, 160, 140, 135}; // Intervalos de spawn en frames por oleada
+    private static final int[] ENEMIGOS_POR_OLEADA = {15, 25, 35, 45, 55};// Total de enemigos por oleada
 
-    // **Configuración de oleadas**: arrays que controlan la dificultad por oleada
-    // Cuántos murciélagos aparecen por spawn en cada oleada (índice 0 = oleada 1, etc.)
-    private static final int[] MURCIELAGOS_POR_SPAWN = {3, 3, 3, 3, 4};
-    // Intervalo en frames entre cada spawn de murciélagos
-    private static final int[] INTERVALOS_SPAWN = {200, 180, 160, 140, 135};
-    // Total de enemigos que hay que eliminar para completar cada oleada
-    private static final int[] ENEMIGOS_POR_OLEADA = {6, 10, 14, 18, 25};
+    // Variables de estado del juego
+    private boolean menu = true; // Indica si el juego está en el menú principal
+    private boolean juego = false; // Indica si el juego está activo
+    private boolean juegoTerminado = false; // Indica si el jugador perdió
+    private boolean juegoganado = false; // Indica si el jugador ganó
+    private boolean reset = false; // Indica si se debe reiniciar el juego
+    private int numeroOleada = 0; // Oleada actual (0 a 4)
+    private int murcielagosEliminadosOleada5 = 0; // Contador de enemigos eliminados en la oleada 5
+    private int tiempoTranscurrido = 0; // Tiempo en frames desde el inicio del juego
+    private int enemigosEliminados = 0; // Total de enemigos eliminados en la oleada actual
+    private int contadorSpawn = 0; // Contador para controlar el tiempo entre spawns
+    private String mensajeOleada = null; // Mensaje de la oleada actual
+    private int framesMensajeOleada = 0; // Duración en frames del mensaje de oleada
 
-    // **Variables de estado del juego**: controlan en qué pantalla estamos y cómo avanza
-    // ¿Estamos en el menú principal?
-    private boolean menu = true;
-    // ¿El juego está activo (jugando)?
-    private boolean juego = false;
-    // ¿Perdimos (mago sin vidas)?
-    private boolean juegoTerminado = false;
-    // ¿Ganamos (completamos todas las oleadas)?
-    private boolean juegoganado = false;
-    // ¿Se pidió reiniciar el juego?
-    private boolean reset = false;
-    // Qué oleada estamos jugando (0 = oleada 1, 1 = oleada 2, etc.)
-    private int numeroOleada = 0;
-    // Contador de murciélagos eliminados en la oleada 5
-    private int murcielagosEliminadosOleada5 = 0;
-    // Tiempo total en frames (para mostrar segundos en pantalla)
-    private int tiempoTranscurrido = 0;
-    // Total de enemigos eliminados en la oleada actual
-    private int enemigosEliminados = 0;
-    // Contador para regenerar energía mágica cada ciertos frames
-    private int contadorRecuperacion = 0;
-    // Contador para controlar el spawn de murciélagos
-    private int contadorSpawn = 0;
-    // Mensaje de la oleada actual (ej: "Oleada 1")
-    private String mensajeOleada = null;
-    // Cuántos frames queda el mensaje de oleada en pantalla
-    private int framesMensajeOleada = 0;
+    // Objetos principales del juego
+    private Entorno entorno; // Entorno gráfico del juego
+    private MenuPrincipal menuPrincipal; // Menú principal
+    private Mago mago; // Jugador (mago)
+    private ArrayList<Murcielago> murcielagos; // Lista de enemigos (murciélagos)
+    private Roca[] rocas; // Obstáculos fijos en el mapa
+    private Objetos objetos; // Clase para manejar pociones y potenciadores
+    private ArrayList<Objetos.Pocion> pociones; // Lista de pociones en el juego
+    private ArrayList<Objetos.Potenciador> potenciadores; // Lista de potenciadores en el juego
+    private boolean seleccionPotenciador = false; // Indica si se está seleccionando un potenciador
+    private Hechizo rayo; // Hechizo de tipo rayo
+    private Hechizo centella; // Hechizo de tipo centella (área)
+    private Hechizo hechizoLanzado = null; // Hechizo actualmente activo
 
-    // **Objetos del juego**: instancias de las clases que componen el juego
-    // Entorno gráfico donde se dibuja todo
-    private Entorno entorno;
-    // Menú principal que se muestra al inicio
-    private MenuPrincipal menuPrincipalF;
-    // El mago, nuestro personaje jugable
-    private Mago mago;
-    // Lista de murciélagos enemigos en pantalla
-    private ArrayList<Murcielago> murcielagos;
-    // Array de rocas que actúan como obstáculos
-    private Roca[] rocas;
-    // Clase que maneja pociones y potenciadores
-    private Objetos objetos;
-    // Lista de pociones en el suelo
-    private ArrayList<Objetos.Pocion> pociones;
-    // Lista de potenciadores en el suelo
-    private ArrayList<Objetos.Potenciador> potenciadores;
-    // ¿El mago está eligiendo un potenciador?
-    private boolean seleccionPotenciador = false;
-    // Mapa del juego, que cambia según la oleada
-    private Mapa mapeado;
+    // Recursos gráficos
+    private Image fondo; // Imagen de fondo del juego
+    private Image menuImage; // Imagen del menú lateral
+    private Image fin; // Imagen de pantalla de derrota
+    private Image ganaste; // Imagen de pantalla de victoria
+    private Image titulo; // Imagen del título del juego
+    private Image imgBotonRayo; // Imagen del botón para seleccionar rayo
+    private Image imgBotonCentella; // Imagen del botón para seleccionar centella
+    private Image rayomenuseleccionado; // Imagen del botón rayo seleccionado
+    private Image centellamenuseleccionado; // Imagen del botón centella seleccionado
+    private Image imgRayoLanzado; // Imagen del hechizo rayo al lanzarse
+    private Image imgCentellaLanzado; // Imagen del hechizo centella al lanzarse
+    private Botonazo botonMenu; // Botón para iniciar el juego desde el menú
+    private Image imagenBotonMenu; // Imagen del botón de inicio (normal)
+    private Image imagenBotonMenu2; // Imagen del botón de inicio (resaltado)
 
-    // **Variables de hechizos**: controlan los hechizos del mago
-    // Hechizo Rayo (daño directo)
-    private Hechizo hechizo1;
-    // Hechizo Centella (daño en área)
-    private Hechizo hechizo2;
-    // Hechizo actualmente activo (si hay uno)
-    private Hechizo hechizoLanzado = null;
-    // Coordenada X del hechizo activo
-    private double hechizoX = -1;
-    // Coordenada Y del hechizo activo
-    private double hechizoY = -1;
-    // Cuántos frames lleva el hechizo activo
-    private int hechizoFrames = 0;
-    // Velocidad en X del hechizo Rayo
-    private double rayoVelX;
-    // Velocidad en Y del hechizo Rayo
-    private double rayoVelY;
-    // Ángulo de movimiento del hechizo Rayo
-    private double rayoAngle;
-
-    // **Imágenes**: recursos gráficos del juego
-    // Fondo del área de juego
-    private Image fondo;
-    // Imagen del menú lateral derecho
-    private Image menuImage;
-    // Pantalla de "Game Over"
-    private Image fin;
-    // Pantalla de victoria
-    private Image ganaste;
-    // Título del juego en el menú principal
-    private Image titulo;
-    // Botón "Iniciar" (estado normal)
-    private Image imagenBotonMenu;
-    // Botón "Iniciar" (estado activo, con mouse encima)
-    private Image imagenBotonMenu2;
-    // Botón para seleccionar el hechizo Rayo
-    private Image imgBotonRayo;
-    // Botón para seleccionar el hechizo Centella
-    private Image imgBotonCentella;
-    // Botón Rayo cuando está seleccionado
-    private Image rayomenuseleccionado;
-    // Botón Centella cuando está seleccionado
-    private Image centellamenuseleccionado;
-    // Imagen del hechizo Rayo cuando se lanza
-    private Image imgRayoLanzado;
-    // Imagen del hechizo Centella cuando se lanza
-    private Image imgCentellaLanzado;
-
-    // **Botones**: elementos interactivos del juego
-    // Botón del menú principal para iniciar el juego
-    private Botonazo botonMenu;
-
-    // **Constructor**: inicializa todo lo necesario para arrancar el juego
+    // Constructor: inicializa el juego y sus componentes
     public Juego() {
-        // Creamos el entorno gráfico con título y resolución 800x600
+        // Inicializa el entorno gráfico con una ventana de 800x600 píxeles
         this.entorno = new Entorno(this, "El camino de Gondolf - Grupo XX - v1", 800, 600);
-        // Inicializamos el menú principal
-        this.menuPrincipalF = new MenuPrincipal(entorno);
-        // Creamos el botón "Iniciar" en el menú (posición 600,200, tamaño 150x29)
-        this.botonMenu = new Botonazo(600, 200, 150, 29, entorno);
-        // Creamos el mapa con dimensiones 800x600 y oleada inicial (0)
-        this.mapeado = new Mapa(800, 600, 0, entorno);
-        // Cargamos la imagen de la pantalla de derrota
+        this.menuPrincipal = new MenuPrincipal(entorno); // Crea el menú principal
+        this.botonMenu = new Botonazo(600, 200, 150, 29, entorno); // Botón de inicio en el menú
+
+        // Carga y escala imágenes para pantallas, botones y hechizos
         this.fin = Herramientas.cargarImagen("img/seTermino.png");
-        // Cargamos la imagen de la pantalla de victoria
         this.ganaste = Herramientas.cargarImagen("img/ganaste.png");
-        // Cargamos y escalamos la imagen del botón "Iniciar" (estado normal)
         this.imagenBotonMenu = Herramientas.cargarImagen("img/iniciar.png")
                 .getScaledInstance(botonMenu.ancho, botonMenu.alto, Image.SCALE_SMOOTH);
-        // Cargamos y escalamos la imagen del botón "Iniciar" (estado activo)
         this.imagenBotonMenu2 = Herramientas.cargarImagen("img/iniciarArriba.png")
                 .getScaledInstance(botonMenu.ancho, botonMenu.alto, Image.SCALE_SMOOTH);
-        // Cargamos y escalamos el título del juego
         this.titulo = Herramientas.cargarImagen("img/title.png")
                 .getScaledInstance(600, 200, Image.SCALE_SMOOTH);
-        // Cargamos y escalamos el fondo del juego
         this.fondo = Herramientas.cargarImagen("img/fondo10.png")
                 .getScaledInstance(1050, 805, Image.SCALE_SMOOTH);
-        // Cargamos y escalamos el menú lateral
         this.menuImage = Herramientas.cargarImagen("img/menu.jpg")
                 .getScaledInstance(550, 805, Image.SCALE_SMOOTH);
-        // Cargamos y escalamos el botón del hechizo Rayo
         this.imgBotonRayo = Herramientas.cargarImagen("img/rayomenu.png")
                 .getScaledInstance(400, 350, Image.SCALE_SMOOTH);
-        // Cargamos y escalamos el botón del hechizo Centella
         this.imgBotonCentella = Herramientas.cargarImagen("img/centellamenu.png")
                 .getScaledInstance(400, 350, Image.SCALE_SMOOTH);
-        // Cargamos y escalamos el botón seleccionado del hechizo Rayo
         this.rayomenuseleccionado = Herramientas.cargarImagen("img/rayomenuseleccionado.png")
                 .getScaledInstance(400, 350, Image.SCALE_SMOOTH);
-        // Cargamos y escalamos el botón seleccionado del hechizo Centella
         this.centellamenuseleccionado = Herramientas.cargarImagen("img/centellamenuseleccionado.png")
                 .getScaledInstance(400, 350, Image.SCALE_SMOOTH);
-        // Creamos botones para seleccionar hechizos (pero no los guardamos, solo se dibujan)
-        new Boton(700, 50, 120, 40, imgBotonRayo, entorno);
-        new Boton(700, 100, 120, 40, imgBotonCentella, entorno);
-        // Creamos el hechizo Rayo: sin costo de magia, 150 de daño
-        this.hechizo1 = new Hechizo("RAYO", 0, 150);
-        // Creamos el hechizo Centella: 50 de costo, 80 de daño
-        this.hechizo2 = new Hechizo("CENTELLA", 50, 80);
-        // Cargamos y escalamos la imagen del hechizo Rayo lanzado
+        
+        // Crea botones para seleccionar hechizos
+        new Boton(700, 50, 120, 40, imgBotonRayo, entorno); // Botón para rayo
+        new Boton(700, 100, 120, 40, imgBotonCentella, entorno); // Botón para centella
+
+        // Carga imágenes de hechizos lanzados
         this.imgRayoLanzado = Herramientas.cargarImagen("img/rayo.png")
                 .getScaledInstance(100, 100, Image.SCALE_SMOOTH);
-        // Cargamos y escalamos la imagen del hechizo Centella lanzado
         this.imgCentellaLanzado = Herramientas.cargarImagen("img/hechizoArea.png")
                 .getScaledInstance(100, 100, Image.SCALE_SMOOTH);
-        // Creamos al mago en el centro de la pantalla (x=400, y=300)
-        this.mago = new Mago(400, 300, entorno);
-        // Establecemos 100 como vida máxima
-        this.mago.vidasMaximas = 100;
-        // Establecemos 100 como energía mágica máxima
-        this.mago.energiaMagicaMaxima = 100;
-        // Aseguramos que las vidas no superen el máximo
-        this.mago.vidas = Math.min(mago.vidas, mago.vidasMaximas);
-        // Aseguramos que la energía no supere el máximo
-        this.mago.energiaMagica = Math.min(mago.energiaMagica, mago.energiaMagicaMaxima);
-        // Inicializamos la lista de murciélagos
-        this.murcielagos = new ArrayList<>();
-        // Creamos el objeto que maneja pociones y potenciadores
-        this.objetos = new Objetos(entorno);
-        // Inicializamos la lista de pociones
-        this.pociones = new ArrayList<>();
-        // Inicializamos la lista de potenciadores
-        this.potenciadores = new ArrayList<>();
-        // Creamos las rocas en posiciones fijas como obstáculos
+
+        // Inicializa hechizos con sus propiedades (nombre, costo, daño, imagen)
+        this.rayo = new Hechizo("RAYO", 0, 150, imgRayoLanzado, entorno);
+        this.centella = new Hechizo("CENTELLA", 50, 80, imgCentellaLanzado, entorno);
+
+        // Inicializa el jugador, enemigos, obstáculos y objetos
+        this.mago = new Mago(400, 300, entorno); // Mago en el centro inicial
+        this.murcielagos = new ArrayList<>(); // Lista vacía para murciélagos
+        this.objetos = new Objetos(entorno); // Objetos (pociones y potenciadores)
+        this.pociones = new ArrayList<>(); // Lista vacía para pociones
+        this.potenciadores = new ArrayList<>(); // Lista vacía para potenciadores
         this.rocas = new Roca[] {
-                new Roca(200, 150),
-                new Roca(550, 200),
-                new Roca(250, 450),
-                new Roca(450, 150),
-                new Roca(150, 350)
+                new Roca(200, 150), new Roca(550, 200), new Roca(250, 450),
+                new Roca(450, 150), new Roca(150, 350) // Obstáculos fijos
         };
-        // Iniciamos el entorno gráfico para que el juego comience
+        
+        // Inicia el entorno gráfico
         this.entorno.iniciar();
     }
 
-    // **Método generarMurcielagosOleada**: crea una cantidad específica de murciélagos
+    // Genera murciélagos para una oleada, asegurando que no se superpongan ni estén cerca del mago
     private void generarMurcielagosOleada(int cant) {
-        // Contador de murciélagos generados
         int murcielagosGenerados = 0;
-        // Seguimos hasta generar la cantidad deseada
         while (murcielagosGenerados < cant) {
-            // Variable para el nuevo murciélago
             Murcielago nuevoMurcielago;
-            // ¿Se superpone con otro murciélago?
             boolean superpuesto;
-            // ¿Está muy cerca del mago?
             boolean demasiadoCerca;
-            // Contador de intentos para evitar bucles infinitos
             int intentos = 0;
             do {
-                // Asignamos vida según la oleada: 35 en oleada 3, 140 en oleada 4, 20 en las demás
+                // Define vida inicial según la oleada (más fuerte en oleadas 3 y 4)
                 int vidaInicial = (numeroOleada == 3) ? 35 : (numeroOleada == 4) ? 140 : 20;
-                // Creamos el murciélago con la vida inicial
                 nuevoMurcielago = new Murcielago(entorno, vidaInicial);
-                // Elegimos un borde aleatorio para que aparezca (0: arriba, 1: derecha, 2: abajo, 3: izquierda)
+                
+                // Selecciona un borde aleatorio para el spawn
                 int borde = (int)(Math.random() * 4);
                 switch (borde) {
-                    case 0: // Borde superior
-                        nuevoMurcielago.x = (int)(Math.random() * (LIMITE_DERECHO - MARGEN)) + MARGEN;
+                    case 0: // Arriba
+                        nuevoMurcielago.x = (int)(Math.random() * (600 - MARGEN - MARGEN)) + MARGEN;
                         nuevoMurcielago.y = MARGEN;
                         break;
-                    case 1: // Borde derecho
-                        nuevoMurcielago.x = LIMITE_DERECHO;
-                        nuevoMurcielago.y = (int)(Math.random() * (LIMITE_INFERIOR - MARGEN)) + MARGEN;
+                    case 1: // Derecha
+                        nuevoMurcielago.x = 600 - MARGEN;
+                        nuevoMurcielago.y = (int)(Math.random() * (600 - MARGEN - MARGEN)) + MARGEN;
                         break;
-                    case 2: // Borde inferior
-                        nuevoMurcielago.x = (int)(Math.random() * (LIMITE_DERECHO - MARGEN)) + MARGEN;
-                        nuevoMurcielago.y = LIMITE_INFERIOR;
+                    case 2: // Abajo
+                        nuevoMurcielago.x = (int)(Math.random() * (600 - MARGEN - MARGEN)) + MARGEN;
+                        nuevoMurcielago.y = 600 - MARGEN;
                         break;
-                    case 3: // Borde izquierdo
+                    case 3: // Izquierda
                         nuevoMurcielago.x = MARGEN;
-                        nuevoMurcielago.y = (int)(Math.random() * (LIMITE_INFERIOR - MARGEN)) + MARGEN;
+                        nuevoMurcielago.y = (int)(Math.random() * (600 - MARGEN - MARGEN)) + MARGEN;
                         break;
                 }
-                // Verificamos si se superpone con otros murciélagos
-                superpuesto = estaMurcielagoSuperpuesto(nuevoMurcielago);
-                // Verificamos si está muy cerca del mago
-                demasiadoCerca = estaMurcielagoCercaDeMago(nuevoMurcielago);
-                // Incrementamos los intentos
+                superpuesto = estaMurcielagoSuperpuesto(nuevoMurcielago); // Verifica superposición
+                demasiadoCerca = estaMurcielagoCercaDeMago(nuevoMurcielago); // Verifica cercanía al mago
                 intentos++;
-            // Seguimos intentando hasta que no haya superposición ni cercanía, o hasta 50 intentos
-            } while ((superpuesto || demasiadoCerca) && intentos < 50);
-            // Si la posición es válida, agregamos el murciélago a la lista
+            } while ((superpuesto || demasiadoCerca) && intentos < 50); // Limita intentos para evitar bucles infinitos
             if (!superpuesto && !demasiadoCerca) {
                 murcielagos.add(nuevoMurcielago);
                 murcielagosGenerados++;
@@ -279,56 +162,45 @@ public class Juego extends InterfaceJuego {
         }
     }
 
-    // **Método generarMurcielagos**: genera murciélagos respetando el límite en pantalla
+    // Genera murciélagos según la oleada, respetando el límite máximo
     private void generarMurcielagos() {
-        // Si ya hay demasiados murciélagos, no generamos más
         if (murcielagos.size() >= MAX_MURCIELAGOS_EN_PANTALLA) {
-            return;
+            return; // No genera más si se alcanzó el límite
         }
-        // Calculamos cuántos murciélagos podemos generar según la oleada y el límite
-        int murcielagosAGenerar = Math.min(MURCIELAGOS_POR_SPAWN[numeroOleada], 
+        int murcielagosAGenerar = Math.min(MURCIELAGOS_POR_SPAWN[numeroOleada],
                 MAX_MURCIELAGOS_EN_PANTALLA - murcielagos.size());
-        // Si hay murciélagos por generar, llamamos al método
         if (murcielagosAGenerar > 0) {
             generarMurcielagosOleada(murcielagosAGenerar);
         }
     }
 
-    // **Método estaMurcielagoSuperpuesto**: verifica si un murciélago se superpone con otros
+    // Verifica si un murciélago está superpuesto con otro
     private boolean estaMurcielagoSuperpuesto(Murcielago nuevo) {
-        // Recorremos todos los murciélagos existentes
         for (Murcielago murci : murcielagos) {
-            // Si la distancia entre ellos es menor a 50 píxeles, están superpuestos
             if (Math.abs(nuevo.x - murci.x) < 50 && Math.abs(nuevo.y - murci.y) < 50) {
-                return true;
+                return true; // Detecta colisión si están a menos de 50 píxeles
             }
         }
         return false;
     }
 
-    // **Método estaMurcielagoCercaDeMago**: verifica si un murciélago está muy cerca del mago
+    // Verifica si un murciélago está demasiado cerca del mago
     private boolean estaMurcielagoCercaDeMago(Murcielago nuevo) {
-        // Calculamos la distancia euclidiana al mago
         double distanciaAlMago = Math.sqrt(
-                Math.pow(nuevo.x - mago.x, 2) + Math.pow(nuevo.y - mago.y, 2)
+                Math.pow(nuevo.x - mago.getX(), 2) + Math.pow(nuevo.y - mago.getY(), 2)
         );
-        // Si está a menos de 100 píxeles, está demasiado cerca
-        return distanciaAlMago < 100;
+        return distanciaAlMago < 100; // Considera "cerca" si está a menos de 100 píxeles
     }
 
-    // **Método mantenerDistanciaMurcielagos**: evita que los murciélagos se amontonen
+    // Mantiene la distancia mínima entre murciélagos para evitar superposición
     private void mantenerDistanciaMurcielagos() {
-        // Recorremos todos los murciélagos
         for (Murcielago murci : murcielagos) {
-            // Comparamos con los demás murciélagos
             for (Murcielago otroMurci : murcielagos) {
-                // Calculamos la distancia entre ellos
                 double dx = murci.x - otroMurci.x;
                 double dy = murci.y - otroMurci.y;
                 double distancia = Math.sqrt(dx * dx + dy * dy);
-                // Si están a menos de 50 píxeles y no son el mismo murciélago
                 if (distancia < 50 && distancia > 0) {
-                    // Los separamos un poco para evitar superposición
+                    // Ajusta posiciones para mantener separación
                     murci.x += dx / distancia * 1.5;
                     murci.y += dy / distancia * 1.5;
                 }
@@ -336,257 +208,131 @@ public class Juego extends InterfaceJuego {
         }
     }
 
-    // **Método lanzarHechizo**: lanza un hechizo hacia un punto en la pantalla
-    private void lanzarHechizo(Hechizo hechizo, double targetX, double targetY) {
-        // Si no hay suficiente energía mágica, no lanzamos
-        if (mago.energiaMagica < hechizo.costoMagia) {
-            return;
-        }
-        // Descontamos la energía mágica necesaria
-        mago.energiaMagica -= hechizo.costoMagia;
-        // Activamos el hechizo por una duración fija
-        hechizoFrames = DURACION_HECHIZO;
-        // Guardamos el hechizo activo
-        hechizoLanzado = hechizo;
-
-        // Configuramos según el tipo de hechizo
-        if (hechizo.nombre.equals("RAYO")) {
-            configurarHechizoRayo(targetX, targetY);
-        } else if (hechizo.nombre.equals("CENTELLA")) {
-            configurarHechizoCentella();
-        }
-    }
-
-    // **Método configurarHechizoRayo**: calcula la trayectoria del hechizo Rayo
-    private void configurarHechizoRayo(double targetX, double targetY) {
-        // El hechizo sale desde la posición del mago
-        hechizoX = mago.x;
-        hechizoY = mago.y;
-        // Calculamos la diferencia en X e Y hasta el objetivo
-        double dx = targetX - mago.x;
-        double dy = targetY - mago.y;
-        // Calculamos el ángulo del movimiento
-        rayoAngle = Math.atan2(dy, dx);
-        // Velocidad fija del hechizo (10 píxeles por frame)
-        double velocidad = 10.0;
-        // Calculamos la distancia al objetivo
-        double distancia = Math.sqrt(dx * dx + dy * dy);
-        // Si hay distancia, calculamos las velocidades en X e Y
-        if (distancia > 0) {
-            rayoVelX = (dx / distancia) * velocidad;
-            rayoVelY = (dy / distancia) * velocidad;
-        } else {
-            // Si no hay distancia (clic en el mago), no se mueve
-            rayoVelX = 0;
-            rayoVelY = 0;
-        }
-    }
-
-    // **Método configurarHechizoCentella**: aplica daño en área para el hechizo Centella
-    private void configurarHechizoCentella() {
-        // El hechizo se centra en la posición del mago
-        hechizoX = mago.x;
-        hechizoY = mago.y;
-        // Lista para los murciélagos que serán eliminados
-        ArrayList<Murcielago> eliminados = new ArrayList<>();
-        // Radio del área de efecto (60 píxeles)
-        int radio = 60;
-        // Recorremos todos los murciélagos
-        for (Murcielago m : murcielagos) {
-            // Calculamos la distancia al mago
-            double distancia = Math.sqrt(
-                    Math.pow(m.x - mago.x, 2) + Math.pow(m.y - mago.y, 2)
-            );
-            // Si están dentro del radio, reciben daño
-            if (distancia <= radio) {
-                m.vida -= hechizo2.area;
-                // Si se quedan sin vida, los marcamos para eliminar
-                if (m.vida <= 0) {
-                    eliminados.add(m);
-                    soltarObjetosAlMorir(m);
-                }
-            }
-        }
-        // Sumamos los eliminados al contador
-        enemigosEliminados += eliminados.size();
-        // Quitamos los murciélagos eliminados de la lista
-        murcielagos.removeAll(eliminados);
-    }
-
-    // **Método soltarObjetosAlMorir**: suelta pociones o potenciadores al morir un murciélago
+    // Genera pociones o potenciadores al morir un murciélago
     private void soltarObjetosAlMorir(Murcielago m) {
-        // Si el mago tiene poca vida (80 o menos), 5% de chance de soltar una poción
+        // 5% de probabilidad de soltar poción si el mago tiene poca vida
         if (mago.vidas <= 80 && Math.random() < 0.05) {
-            // Creamos una nueva poción en la posición del murciélago
             Objetos.Pocion nuevaPocion = objetos.new Pocion((int)m.x, (int)m.y, objetos);
-            // Si está más allá del límite derecho, la reposicionamos
             if (nuevaPocion.x >= 600) {
-                nuevaPocion.x = (int)(Math.random() * (600 - 50)) + 50;
+                nuevaPocion.x = (int)(Math.random() * (600 - 50)) + 50; // Ajusta posición si está fuera del área jugable
             }
-            // Agregamos la poción a la lista
             pociones.add(nuevaPocion);
-        // Si no, 2% de chance de soltar un potenciador
+        // 2% de probabilidad de soltar potenciador
         } else if (Math.random() < 0.02) {
-            // Creamos un nuevo potenciador en la posición del murciélago
             Objetos.Potenciador nuevoPotenciador = objetos.new Potenciador((int)m.x, (int)m.y, objetos);
-            // Si está más allá del límite derecho, lo reposicionamos
             if (nuevoPotenciador.x >= 600) {
-                nuevoPotenciador.x = (int)(Math.random() * (600 - 50)) + 50;
+                nuevoPotenciador.x = (int)(Math.random() * (600 - 50)) + 50; // Ajusta posición si está fuera del área
             }
-            // Agregamos el potenciador a la lista
             potenciadores.add(nuevoPotenciador);
         }
-        // Incrementamos el contador de enemigos eliminados
         enemigosEliminados++;
-        // Si es la oleada 5, contamos los murciélagos eliminados
         if (numeroOleada == 4) {
-            murcielagosEliminadosOleada5++;
+            murcielagosEliminadosOleada5++; // Contador específico para oleada 5
         }
     }
 
-    // **Método reiniciarJuego**: resetea el juego a su estado inicial
+    // Reinicia el juego a su estado inicial
     private void reiniciarJuego() {
-        // Desactivamos las pantallas de victoria y derrota
         juegoTerminado = false;
         juegoganado = false;
-        // Creamos un mago nuevo en el centro
-        mago = new Mago(400, 300, entorno);
-        // Configuramos sus stats máximos
-        mago.vidasMaximas = 100;
-        mago.energiaMagicaMaxima = 100;
-        // Aseguramos que no exceda los máximos
-        mago.vidas = Math.min(mago.vidas, mago.vidasMaximas);
-        mago.energiaMagica = Math.min(mago.energiaMagica, mago.energiaMagicaMaxima);
-        // Vaciamos la lista de murciélagos
-        murcielagos.clear();
-        // Reseteamos contadores
+        mago = new Mago(400, 300, entorno); // Reinicia el mago en el centro
+        murcielagos.clear(); // Limpia la lista de murciélagos
         tiempoTranscurrido = 0;
         enemigosEliminados = 0;
         murcielagosEliminadosOleada5 = 0;
-        // Desactivamos cualquier hechizo activo
         hechizoLanzado = null;
-        hechizoFrames = 0;
-        // Deseleccionamos los hechizos
-        hechizo1.deseleccionar();
-        hechizo2.deseleccionar();
-        // Vaciamos las listas de pociones y potenciadores
+        rayo.deseleccionar();
+        centella.deseleccionar();
         pociones.clear();
         potenciadores.clear();
-        // Desactivamos la selección de potenciador
         seleccionPotenciador = false;
-        // Volvemos al mapa inicial (oleada 1)
-        mapeado.setNumeroMapa(0);
-        // Volvemos a la primera oleada
         numeroOleada = 0;
-        // Quitamos el mensaje de oleada
         mensajeOleada = null;
         framesMensajeOleada = 0;
         contadorSpawn = 0;
-        // Volvemos al menú principal
-        menu = true;
+        menu = true; // Vuelve al menú principal
         juego = false;
     }
 
-    // **Método dibujarMensajeOleada**: muestra el mensaje de la oleada en pantalla
+    // Dibuja el mensaje de la oleada actual en pantalla
     private void dibujarMensajeOleada() {
-        // Si hay un mensaje y no se acabó el tiempo
         if (mensajeOleada != null && framesMensajeOleada > 0) {
-            // Usamos fuente Arial, tamaño 40, color amarillo
             entorno.cambiarFont("Arial", 40, Color.YELLOW);
-            // Mostramos el mensaje centrado en la pantalla
-            entorno.escribirTexto(mensajeOleada, 200, 300);
-            // Reducimos el contador de frames
+            entorno.escribirTexto(mensajeOleada, 200, 300); // Muestra el mensaje centrado
             framesMensajeOleada--;
-            // Si se acaba el tiempo, borramos el mensaje
-            if (framesMensajeOleada <= 0) {
-                mensajeOleada = null;
+            if (framesMensajeOleada == 0) {
+                mensajeOleada = null; // Corrige posible error en el código original
             }
         }
     }
 
-    // **Método tick**: bucle principal del juego, se ejecuta cada frame
+    // Método principal del bucle del juego, ejecutado cada frame
     @Override
     public void tick() {
-        // Según el estado, manejamos el menú, el juego, victoria o derrota
         if (menu) {
-            manejarMenuPrincipal();
+            manejarMenuPrincipal(); // Maneja la lógica del menú principal
         } else if (juego) {
             if (juegoganado) {
-                manejarPantallaVictoria();
+                manejarPantallaVictoria(); // Muestra pantalla de victoria
             } else if (juegoTerminado) {
-                manejarPantallaDerrota();
+                manejarPantallaDerrota(); // Muestra pantalla de derrota
             } else {
-                manejarJuego();
+                manejarJuego(); // Ejecuta la lógica del juego activo
             }
         }
 
-        // **Control de oleadas**: si estamos jugando y no hemos ganado ni perdido
+        // Controla el spawn de murciélagos y la progresión de oleadas
         if (juego && !juegoTerminado && !juegoganado) {
-            // Incrementamos el contador de spawn
             contadorSpawn++;
-            // Si alcanzamos el intervalo de spawn de la oleada
             if (contadorSpawn >= INTERVALOS_SPAWN[numeroOleada]) {
-                // Generamos murciélagos si no hemos completado la oleada
+                // Genera murciélagos si no se ha alcanzado el límite de enemigos por oleada
                 if (numeroOleada < 4 && enemigosEliminados < ENEMIGOS_POR_OLEADA[numeroOleada] ||
                     numeroOleada == 4 && murcielagosEliminadosOleada5 < ENEMIGOS_POR_OLEADA[4]) {
                     generarMurcielagos();
                 }
-                // Reseteamos el contador de spawn
-                contadorSpawn = 0;
+                contadorSpawn = 0; // Reinicia el contador de spawn
             }
 
-            // **Transiciones entre oleadas**
-            // De oleada 1 a 2
+            // Avanza a la siguiente oleada cuando se eliminan todos los enemigos
             if (numeroOleada == 0 && enemigosEliminados >= ENEMIGOS_POR_OLEADA[0] && murcielagos.size() == 0) {
                 numeroOleada = 1;
-                mapeado.setNumeroMapa(numeroOleada + 1);
                 mensajeOleada = "Oleada 2";
-                framesMensajeOleada = DURACION_MENSAJE_OLEADA;
+                framesMensajeOleada = 100;
                 contadorSpawn = 0;
-                mago.x = 400;
-                mago.y = 300;
+                mago.resetearPosicion();
                 enemigosEliminados = 0;
-            // De oleada 2 a 3
             } else if (numeroOleada == 1 && enemigosEliminados >= ENEMIGOS_POR_OLEADA[1] && murcielagos.size() == 0) {
                 numeroOleada = 2;
-                mapeado.setNumeroMapa(numeroOleada + 1);
                 mensajeOleada = "Oleada 3";
-                framesMensajeOleada = DURACION_MENSAJE_OLEADA;
+                framesMensajeOleada = 100;
                 contadorSpawn = 0;
-                mago.x = 400;
-                mago.y = 300;
+                mago.resetearPosicion();
                 enemigosEliminados = 0;
-            // De oleada 3 a 4
             } else if (numeroOleada == 2 && enemigosEliminados >= ENEMIGOS_POR_OLEADA[2] && murcielagos.size() == 0) {
                 numeroOleada = 3;
-                mapeado.setNumeroMapa(numeroOleada + 1);
                 mensajeOleada = "Oleada 4";
-                framesMensajeOleada = DURACION_MENSAJE_OLEADA;
+                framesMensajeOleada = 100;
                 contadorSpawn = 0;
-                mago.x = 400;
-                mago.y = 300;
+                mago.resetearPosicion();
                 enemigosEliminados = 0;
-            // De oleada 4 a 5
             } else if (numeroOleada == 3 && enemigosEliminados >= ENEMIGOS_POR_OLEADA[3] && murcielagos.size() == 0) {
                 numeroOleada = 4;
-                mapeado.setNumeroMapa(numeroOleada + 1);
                 mensajeOleada = "Oleada 5";
-                framesMensajeOleada = DURACION_MENSAJE_OLEADA;
+                framesMensajeOleada = 100;
                 contadorSpawn = 0;
-                mago.x = 400;
-                mago.y = 300;
+                mago.resetearPosicion();
                 enemigosEliminados = 0;
-            // Victoria al completar la oleada 5
             } else if (numeroOleada == 4 && murcielagosEliminadosOleada5 >= ENEMIGOS_POR_OLEADA[4] && murcielagos.size() == 0) {
-                juegoganado = true;
+                juegoganado = true; // El jugador gana al completar la oleada 5
             }
-            // Si el mago se queda sin vidas, perdemos
+
+            // Termina el juego si el mago se queda sin vidas
             if (mago.vidas <= 0) {
                 juegoTerminado = true;
             }
         }
 
-        // **Reinicio del juego**: si se presiona 'r' al ganar o perder
+        // Reinicia el juego si se presiona 'r' en pantalla de victoria o derrota
         if ((juegoTerminado || juegoganado) && entorno.sePresiono('r')) {
             reset = true;
         }
@@ -596,413 +342,172 @@ public class Juego extends InterfaceJuego {
         }
     }
 
-    // **Método manejarMenuPrincipal**: maneja la lógica y dibujo del menú principal
+    // Maneja la lógica y renderizado del menú principal
     private void manejarMenuPrincipal() {
-        // Dibujamos el fondo del menú principal
-        menuPrincipalF.dibujarMenuPrincipal(400, 300);
-        // Mostramos el título del juego en la parte superior
-        entorno.dibujarImagen(titulo, 400, 90, 0.0);
-        // Por defecto, usamos la imagen normal del botón "Iniciar"
+        menuPrincipal.dibujarMenuPrincipal(400, 300); // Dibuja el fondo del menú
+        entorno.dibujarImagen(titulo, 400, 90, 0.0); // Dibuja el título del juego
         Image botonImagen = imagenBotonMenu;
-        // Si el mouse está sobre el botón
+        // Cambia la imagen del botón si el ratón está sobre él
         if (botonMenu.contienePunto(entorno.mouseX(), entorno.mouseY())) {
-            // Cambiamos a la imagen activa (hover)
             botonImagen = imagenBotonMenu2;
-            // Si se hace clic izquierdo
             if (entorno.sePresionoBoton(entorno.BOTON_IZQUIERDO)) {
-                // Salimos del menú y empezamos el juego
+                // Inicia el juego al hacer clic
                 menu = false;
                 juego = true;
-                // Mostramos el mensaje de la primera oleada
                 mensajeOleada = "Oleada 1";
-                framesMensajeOleada = DURACION_MENSAJE_OLEADA;
-                // Generamos los primeros murciélagos
+                framesMensajeOleada = 100;
                 generarMurcielagos();
-                // Reseteamos el contador de spawn
                 contadorSpawn = 0;
             }
         }
-        // Dibujamos el botón con la imagen correspondiente
-        botonMenu.dibujarBoton(botonImagen);
+        botonMenu.dibujarBoton(botonImagen); // Dibuja el botón de inicio
     }
 
-    // **Método manejarPantallaVictoria**: muestra la pantalla de victoria
+    // Muestra la pantalla de victoria
     private void manejarPantallaVictoria() {
-        // Dibujamos el fondo del menú
-        menuPrincipalF.dibujarMenuPrincipal(400, 300);
-        // Mostramos la imagen de victoria centrada
-        entorno.dibujarImagen(ganaste, 400, 300, 0.0);
+        menuPrincipal.dibujarMenuPrincipal(400, 300);
+        entorno.dibujarImagen(ganaste, 400, 300, 0.0); // Dibuja imagen de victoria
     }
 
-    // **Método manejarPantallaDerrota**: muestra la pantalla de derrota
+    // Muestra la pantalla de derrota
     private void manejarPantallaDerrota() {
-        // Dibujamos el fondo del menú
-        menuPrincipalF.dibujarMenuPrincipal(400, 300);
-        // Mostramos la imagen de derrota centrada
-        entorno.dibujarImagen(fin, 400, 300, 0.0);
+        menuPrincipal.dibujarMenuPrincipal(400, 300);
+        entorno.dibujarImagen(fin, 400, 300, 0.0); // Dibuja imagen de derrota
     }
 
-    // **Método manejarJuego**: maneja la lógica principal del juego
+    // Maneja la lógica principal del juego activo
     private void manejarJuego() {
-        // Incrementamos el tiempo transcurrido (en frames)
-        tiempoTranscurrido++;
-        // Dibujamos el fondo y la interfaz
-        dibujarFondoYUI();
-        // Manejamos la selección y lanzamiento de hechizos
-        manejarEntradaHechizos();
-        // Actualizamos y dibujamos el hechizo activo
-        actualizarYDibujarHechizo();
-        // Dibujamos los objetos del juego (rocas, pociones, etc.)
-        dibujarObjetosJuego();
-        // Manejamos el movimiento del mago
-        manejarMovimientoMago();
-        // Manejamos las interacciones con pociones y potenciadores
-        manejarInteraccionesObjetos();
-        // Actualizamos y dibujamos los murciélagos
-        actualizarYDibujarEnemigos();
-        // Actualizamos el estado del mago (invulnerabilidad, energía)
-        actualizarEstadoMago();
-        // Mostramos el mensaje de la oleada
-        dibujarMensajeOleada();
+        tiempoTranscurrido++; // Incrementa el contador de tiempo
+        dibujarFondoUI(); // Dibuja fondo y UI (barras, botones, estadísticas)
+        manejarEntradaHechizos(); // Procesa clics para seleccionar/lanzar hechizos
+
+        // Actualiza el hechizo activo y elimina murciélagos impactados
+        if (hechizoLanzado != null) {
+            ArrayList<Murcielago> eliminados = new ArrayList<>();
+            hechizoLanzado.actualizar(murcielagos, eliminados);
+            for (Murcielago m : eliminados) {
+                soltarObjetosAlMorir(m); // Genera objetos al eliminar un murciélago
+            }
+            murcielagos.removeAll(eliminados);
+            enemigosEliminados += eliminados.size();
+            if (hechizoLanzado.estaActivo()) {
+                hechizoLanzado.dibujar(); // Dibuja el hechizo activo
+            } else {
+                hechizoLanzado = null; // Libera el hechizo al terminar
+            }
+        }
+
+        // Mueve al mago, respetando obstáculos y estados
+        mago.mover(rocas, seleccionPotenciador, hechizoLanzado != null && hechizoLanzado.estaActivo());
+        mago.interactuarConObjetos(pociones, potenciadores, seleccionPotenciador); // Maneja colisiones con objetos
+        seleccionPotenciador = mago.manejarSeleccionPotenciador(seleccionPotenciador); // Actualiza estado de potenciadores
+        pociones.removeIf(pocion -> !pocion.activa); // Elimina pociones inactivas
+        potenciadores.removeIf(potenciador -> !potenciador.activa); // Elimina potenciadores inactivos
+        actualizarYDibujarEnemigos(); // Actualiza y dibuja los murciélagos
+        mago.invulnerabilidad(); // Gestiona el estado de invulnerabilidad
+        mago.regenerarEnergia(seleccionPotenciador); // Regenera energía del mago
+        dibujarObjetosJuego(); // Dibuja rocas, pociones, potenciadores y mago
+        dibujarMensajeOleada(); // Muestra el mensaje de oleada si está activo
     }
 
-    // **Método dibujarFondoYUI**: dibuja el fondo y la interfaz de usuario
-    private void dibujarFondoYUI() {
-        // Dibujamos el fondo del juego, escalado al 75%
-        entorno.dibujarImagen(fondo, entorno.ancho() / 2, entorno.alto() / 2, 0.0, 0.75);
-        // Dibujamos el menú lateral derecho, también al 75%
-        entorno.dibujarImagen(menuImage, entorno.ancho(), entorno.alto() / 2, 0.0, 0.75);
-        // Mostramos los botones de los hechizos Rayo y Centella
-        entorno.dibujarImagen(imgBotonRayo, 700, 50, 0);
-        entorno.dibujarImagen(imgBotonCentella, 700, 100, 0);
-        // Si el hechizo Rayo está seleccionado, mostramos su imagen activa
-        if (hechizo1.seleccionado) {
+    // Dibuja el fondo y la interfaz de usuario
+    private void dibujarFondoUI() {
+        entorno.dibujarImagen(fondo, entorno.ancho() / 2, entorno.alto() / 2, 0.0, 0.75); // Fondo del juego
+        entorno.dibujarImagen(menuImage, entorno.ancho(), entorno.alto() / 2, 0.0, 0.75); // Menú lateral
+        entorno.dibujarImagen(imgBotonRayo, 700, 50, 0); // Botón de rayo
+        entorno.dibujarImagen(imgBotonCentella, 700, 100, 0); // Botón de centella
+        // Resalta el hechizo seleccionado
+        if (rayo.seleccionado) {
             entorno.dibujarImagen(rayomenuseleccionado, 700, 50, 0.0);
-        // Si el hechizo Centella está seleccionado, mostramos su imagen activa
-        } else if (hechizo2.seleccionado) {
+        } else if (centella.seleccionado) {
             entorno.dibujarImagen(centellamenuseleccionado, 700, 100, 0.0);
         }
-        // Dibujamos las barras de vida y energía
-        dibujarBarrasEstado();
-        // Mostramos las estadísticas (tiempo, enemigos, oleada)
-        dibujarEstadisticasJuego();
+        mago.dibujarBarrasEstado(); // Dibuja barras de vida y energía
+        dibujarEstadisticasJuego(); // Muestra estadísticas del juego
     }
 
-    // **Método dibujarBarrasEstado**: dibuja las barras de vida y energía del mago
-    private void dibujarBarrasEstado() {
-        // **Barra de energía**
-        // Definimos posición y tamaño de la barra
-        int barraX = 620, barraY = 400, anchoBarra = 150, altoBarra = 20;
-        // Dibujamos el fondo de la barra (gris oscuro)
-        entorno.dibujarRectangulo(barraX + anchoBarra / 2, barraY + altoBarra / 2,
-                anchoBarra, altoBarra, 0, Color.DARK_GRAY);
-        // Calculamos la proporción de energía actual
-        double proporcionEnergia = mago.energiaMagica / (double) mago.energiaMagicaMaxima;
-        // Calculamos el ancho del relleno según la proporción
-        int anchoRelleno = (int)(anchoBarra * proporcionEnergia);
-        // Si hay energía, dibujamos el relleno (azul)
-        if (anchoRelleno > 0) {
-            entorno.dibujarRectangulo(barraX + anchoRelleno / 2, barraY + altoBarra / 2,
-                    anchoRelleno, altoBarra, 0, Color.BLUE);
-        }
-        // Mostramos el texto con la energía actual y máxima
-        entorno.cambiarFont("Arial", 14, Color.WHITE);
-        entorno.escribirTexto(mago.energiaMagica + "/" + mago.energiaMagicaMaxima,
-                barraX + 55, barraY + 15);
-        // Mostramos la etiqueta "ENERGIA"
-        entorno.cambiarFont("MV Boli", 20, Color.WHITE);
-        entorno.escribirTexto("ENERGIA", barraX + 35, barraY - 5);
-
-        // **Barra de vida**
-        // Definimos posición y tamaño de la barra
-        int vidaX = barraX, vidaY = 460, anchoVida = 150, altoVida = 20;
-        // Dibujamos el fondo de la barra (gris oscuro)
-        entorno.dibujarRectangulo(vidaX + anchoVida / 2, vidaY + altoVida / 2,
-                anchoVida, altoVida, 0, Color.DARK_GRAY);
-        // Calculamos la proporción de vida actual
-        double proporcionVida = mago.vidas / (double)mago.vidasMaximas;
-        // Calculamos el ancho del relleno según la proporción
-        int anchoRellenoVida = (int)(anchoVida * proporcionVida);
-        // Si hay vida, dibujamos el relleno (rojo)
-        if (anchoRellenoVida > 0) {
-            entorno.dibujarRectangulo(vidaX + anchoRellenoVida / 2, vidaY + altoVida / 2,
-                    anchoRellenoVida, altoVida, 0, Color.RED);
-        }
-        // Mostramos el texto con la vida actual y máxima
-        entorno.cambiarFont("Arial", 14, Color.WHITE);
-        entorno.escribirTexto(mago.vidas + "/" + mago.vidasMaximas, vidaX + 55, vidaY + 15);
-        // Mostramos la etiqueta "VIDA"
-        entorno.cambiarFont("MV Boli", 20, Color.WHITE);
-        entorno.escribirTexto("VIDA", vidaX + 45, vidaY - 5);
-    }
-
-    // **Método dibujarEstadisticasJuego**: muestra las estadísticas del juego
+    // Muestra estadísticas del juego en el menú lateral
     private void dibujarEstadisticasJuego() {
-        // Mostramos el tiempo transcurrido en segundos (frames / 60)
         entorno.cambiarFont("MV Boli", 30, Color.WHITE);
-        entorno.escribirTexto(String.format("%d s", tiempoTranscurrido / 60),
-                entorno.ancho() - 140, 550);
-        // Mostramos las estadísticas de enemigos eliminados y oleada
+        entorno.escribirTexto(String.format("%d s", tiempoTranscurrido / 60), entorno.ancho() - 140, 550); // Tiempo en segundos
         entorno.cambiarFont("MV Boli", 20, Color.WHITE);
         entorno.escribirTexto("ENEMIGOS", 650, 240);
         entorno.escribirTexto("ELIMINADOS", 645, 270);
-        entorno.escribirTexto("" + enemigosEliminados, 700, 300);
+        entorno.escribirTexto("" + enemigosEliminados, 700, 300); // Enemigos eliminados
         entorno.escribirTexto("OLEADA", 650, 150);
-        entorno.escribirTexto("" + (numeroOleada + 1), 700, 180);
+        entorno.escribirTexto("" + (numeroOleada + 1), 700, 180); // Oleada actual
     }
 
-    // **Método manejarEntradaHechizos**: maneja la selección y lanzamiento de hechizos
+    // Maneja clics del ratón para seleccionar y lanzar hechizos
     private void manejarEntradaHechizos() {
-        // Solo actuamos si no estamos eligiendo un potenciador y se hace clic izquierdo
         if (!seleccionPotenciador && entorno.sePresionoBoton(entorno.BOTON_IZQUIERDO)) {
-            // Obtenemos la posición del mouse
             int mouseX = entorno.mouseX();
             int mouseY = entorno.mouseY();
-            // Si se hace clic en el botón del hechizo Rayo (posición 700,50, tamaño 120x40)
+            // Selecciona el hechizo rayo
             if (mouseX >= 700 - 60 && mouseX <= 700 + 60 && mouseY >= 50 - 20 && mouseY <= 50 + 20) {
-                hechizo1.seleccionar();
-                hechizo2.deseleccionar();
-            // Si se hace clic en el botón del hechizo Centella (posición 700,100)
+                rayo.seleccionar();
+                centella.deseleccionar();
+            // Selecciona el hechizo centella
             } else if (mouseX >= 700 - 60 && mouseX <= 700 + 60 && mouseY >= 100 - 20 && mouseY <= 100 + 20) {
-                hechizo2.seleccionar();
-                hechizo1.deseleccionar();
-            // Si se hace clic en el área jugable (izquierda del menú)
-            } else if (mouseX < entorno.ancho() - ANCHO_MENU) {
-                // Elegimos el hechizo seleccionado es Rayo o Centella
-                Hechizo hechizo = hechizo1.seleccionado ? hechizo1 : (hechizo2.seleccionado ? hechizo2 : null);
-                // Si hay un hechizo seleccionado, lo lanzamos
+                centella.seleccionar();
+                rayo.deseleccionar();
+            // Lanza el hechizo seleccionado en la posición del clic
+            } else if (mouseX < entorno.ancho() - 200) {
+                Hechizo hechizo = rayo.seleccionado ? rayo : (centella.seleccionado ? centella : null);
                 if (hechizo != null) {
-                    lanzarHechizo(hechizo, mouseX, mouseY);
+                    hechizo.lanzar(mago, mouseX, mouseY);
+                    hechizoLanzado = hechizo;
                     hechizo.deseleccionar();
                 }
             }
         }
     }
 
-    // **Método actualizarYDibujarHechizo**: actualiza y dibuja el hechizo activo
-    private void actualizarYDibujarHechizo() {
-        // Si no hay hechizo activo o se acabó el tiempo, no hacemos nada
-        if (hechizoFrames <= 0 || hechizoLanzado == null) {
-            return;
-        }
-        // Según el hechizo, actualizamos y dibujamos
-        if (hechizoLanzado.nombre.equals("RAYO")) {
-            actualizarYDibujarRayo();
-        } else if (hechizoLanzado.nombre.equals("CENTELLA")) {
-            // Para Centella, solo dibujamos su imagen en la posición del mago
-            entorno.dibujarImagen(imgCentellaLanzado, hechizoX, hechizoY, 0.0);
-        }
-        // Reducimos el contador de frames
-        hechizoFrames--;
-        // Si se acaba el tiempo, desactivamos el hechizo
-        if (hechizoFrames == 0) {
-            hechizoLanzado = null;
-        }
-    }
-
-    // **Método actualizarYDibujarRayo**: actualiza y dibuja el hechizo Rayo
-    private void actualizarYDibujarRayo() {
-        // Actualizamos la posición del hechizo según su velocidad
-        hechizoX += rayoVelX;
-        hechizoY += rayoVelY;
-        // Lista para los murciélagos que serán eliminados
-        ArrayList<Murcielago> eliminados = new ArrayList<>();
-        // Dimensiones del área de daño del Rayo
-        double rayoAncho = 60, rayoAlto = 30;
-        // Chequeamos colisiones con murciélagos
-        for (Murcielago m : murcielagos) {
-            // Si el hechizo golpea al murciélago
-            if (Math.abs(m.x - hechizoX) <= rayoAncho / 2 && Math.abs(m.y - hechizoY) <= rayoAlto / 2) {
-                // Le quitamos vida según el daño del hechizo
-                m.vida -= hechizo1.area;
-                // Si se queda sin vida, lo marcamos para eliminar
-                if (m.vida <= 0) {
-                    eliminados.add(m);
-                    soltarObjetosAlMorir(m);
-                }
-            }
-        }
-        // Quitamos los murciélagos eliminados
-        murcielagos.removeAll(eliminados);
-        // Si el hechizo sale del área jugable, lo desactivamos
-        if (hechizoX < 0 || hechizoX > entorno.ancho() - ANCHO_MENU ||
-            hechizoY < 0 || hechizoY > entorno.alto()) {
-            hechizoFrames = 0;
-            hechizoLanzado = null;
-        } else {
-            // Dibujamos el hechizo con su ángulo de movimiento
-            entorno.dibujarImagen(imgRayoLanzado, hechizoX, hechizoY, rayoAngle);
-        }
-    }
-
-    // **Método dibujarObjetosJuego**: dibuja todos los objetos del juego
+    // Dibuja todos los objetos del juego (rocas, pociones, potenciadores, mago)
     private void dibujarObjetosJuego() {
-        // Dibujamos cada roca (obstáculos)
         for (Roca roca : rocas) {
-            roca.dibujar(entorno);
+            roca.dibujar(entorno); // Dibuja obstáculos
         }
-        // Dibujamos cada poción en el suelo
         for (Objetos.Pocion pocion : pociones) {
-            pocion.dibujar();
+            pocion.dibujar(); // Dibuja pociones
         }
-        // Dibujamos cada potenciador en el suelo
         for (Objetos.Potenciador potenciador : potenciadores) {
-            potenciador.dibujar();
+            potenciador.dibujar(); // Dibuja potenciadores
         }
-        // Dibujamos al mago
-        mago.dibujar();
+        mago.dibujar(); // Dibuja al mago
     }
 
-    // **Método manejarMovimientoMago**: maneja el movimiento del mago con teclas
-    private void manejarMovimientoMago() {
-        // Si hay un hechizo activo o estamos eligiendo un potenciador, no nos movemos
-        if (hechizoFrames > 0 || seleccionPotenciador) {
-            return;
-        }
-        // Guardamos la posición actual del mago
-        int nuevaX = mago.x;
-        int nuevaY = mago.y;
-        // Movemos según las teclas presionadas (velocidad: 3 píxeles por frame)
-        if (entorno.estaPresionada(entorno.TECLA_DERECHA) || entorno.estaPresionada('d')) {
-            nuevaX += 3;
-            mago.direccion = "derecha";
-        }
-        if (entorno.estaPresionada(entorno.TECLA_IZQUIERDA) || entorno.estaPresionada('a')) {
-            nuevaX -= 3;
-            mago.direccion = "izquierda";
-        }
-        if (entorno.estaPresionada(entorno.TECLA_ARRIBA) || entorno.estaPresionada('w')) {
-            nuevaY -= 3;
-            mago.direccion = "arriba";
-        }
-        if (entorno.estaPresionada(entorno.TECLA_ABAJO) || entorno.estaPresionada('s')) {
-            nuevaY += 3;
-            mago.direccion = "abajo";
-        }
-
-        // Chequeamos colisiones con las rocas
-        boolean hayColision = false;
-        for (Roca roca : rocas) {
-            if (roca.colisionaCon(nuevaX, nuevaY)) {
-                hayColision = true;
-                break;
-            }
-        }
-
-        // Definimos márgenes para mantener al mago dentro del área jugable
-        int margenX = 30, margenY = 40;
-        // Si no hay colisión y estamos dentro de los límites, actualizamos la posición
-        if (!hayColision && nuevaX >= margenX && nuevaX <= LIMITE_DERECHO &&
-                nuevaY >= margenY && nuevaY <= entorno.alto() - margenY) {
-            mago.x = nuevaX;
-            mago.y = nuevaY;
-        }
-    }
-
-    // **Método manejarInteraccionesObjetos**: maneja colisiones con pociones y potenciadores
-    private void manejarInteraccionesObjetos() {
-        // Chequeamos colisiones con pociones
-        for (Objetos.Pocion pocion : pociones) {
-            // Si el mago toca una poción
-            if (pocion.colisionConMago(mago)) {
-                // Aumentamos la vida en 30, respetando el máximo
-                mago.vidas = Math.min(mago.vidas + 30, mago.vidasMaximas);
-                // Desactivamos la poción
-                pocion.desactivar();
-            }
-        }
-        // Chequeamos colisiones con potenciadores
-        for (Objetos.Potenciador potenciador : potenciadores) {
-            // Si el mago toca un potenciador y no está eligiendo uno
-            if (potenciador.colisionConMago(mago) && !seleccionPotenciador) {
-                // Activamos el modo de selección
-                seleccionPotenciador = true;
-                // Desactivamos el potenciador
-                potenciador.desactivar();
-            }
-        }
-        // Si estamos eligiendo un potenciador
-        if (seleccionPotenciador) {
-            // Mostramos las opciones de mejora
-            entorno.cambiarFont("Arial", 30, Color.WHITE);
-            entorno.escribirTexto("Elige mejora:", 200, 250);
-            entorno.escribirTexto("1 - Vida +10", 200, 280);
-            entorno.escribirTexto("2 - Energía +10", 200, 310);
-            // Si se presiona '1', mejoramos la vida
-            if (entorno.sePresiono('1')) {
-                mago.vidasMaximas += 10;
-                mago.vidas = Math.min(mago.vidas + 10, mago.vidasMaximas);
-                seleccionPotenciador = false;
-            // Si se presiona '2', mejoramos la energía
-            } else if (entorno.sePresiono('2')) {
-                mago.energiaMagicaMaxima += 10;
-                mago.energiaMagica = Math.min(mago.energiaMagica + 10, mago.energiaMagicaMaxima);
-                seleccionPotenciador = false;
-            }
-        }
-        // Quitamos las pociones y potenciadores desactivados
-        pociones.removeIf(pocion -> !pocion.activa);
-        potenciadores.removeIf(potenciador -> !potenciador.activa);
-    }
-
-    // **Método actualizarYDibujarEnemigos**: actualiza y dibuja los murciélagos
+    // Actualiza y dibuja los murciélagos (enemigos)
     private void actualizarYDibujarEnemigos() {
-        // Si estamos eligiendo un potenciador, no actualizamos enemigos
         if (seleccionPotenciador) {
-            return;
+            return; // No actualiza enemigos si se está seleccionando un potenciador
         }
-        // Evitamos que los murciélagos se amontonen
-        mantenerDistanciaMurcielagos();
-        // Recorremos todos los murciélagos
+        mantenerDistanciaMurcielagos(); // Evita superposición de murciélagos
         for (int i = 0; i < murcielagos.size(); i++) {
             Murcielago murci = murcielagos.get(i);
-            // Solo dibujamos si está dentro del área jugable (x < 600)
             if (murci.x < 600) {
-                murci.dibujar();
+                murci.dibujar(); // Dibuja murciélagos dentro del área jugable
             }
-            // Hacemos que el murciélago persiga al mago
-            murci.seguirMago(mago);
-            // Limitamos su movimiento dentro del área jugable
-            murci.x = Math.max(MARGEN, Math.min(murci.x, LIMITE_DERECHO));
-            murci.y = Math.max(MARGEN, Math.min(murci.y, LIMITE_INFERIOR));
-            // Si el mago no es invulnerable, chequeamos colisiones
+            murci.seguirMago(mago); // Mueve murciélagos hacia el mago
+            // Limita el movimiento dentro de los márgenes
+            murci.x = Math.max(MARGEN, Math.min(murci.x, 600 - MARGEN));
+            murci.y = Math.max(MARGEN, Math.min(murci.y, 600 - MARGEN));
+            // Detecta colisión con el mago si no es invulnerable
             if (!mago.invulnerable) {
-                // Calculamos la distancia entre el murciélago y el mago
-                double dx = murci.x - mago.x;
-                double dy = murci.y - mago.y;
-                // Si están muy cerca (menos de 20 píxeles), el mago recibe daño
+                double dx = murci.x - mago.getX();
+                double dy = murci.y - mago.getY();
                 if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
-                    mago.reducirVida();
-                    // Eliminamos el murciélago
-                    murcielagos.remove(i);
+                    mago.reducirVida(); // Reduce vida del mago
+                    murcielagos.remove(i); // Elimina el murciélago
                     i--;
                 }
             }
         }
     }
 
-    // **Método actualizarEstadoMago**: actualiza el estado del mago
-    private void actualizarEstadoMago() {
-        // Actualizamos el estado de invulnerabilidad (si aplica)
-        mago.invulnerabilidad();
-        // Si no estamos eligiendo un potenciador y falta energía
-        if (!seleccionPotenciador && mago.energiaMagica < mago.energiaMagicaMaxima) {
-            // Incrementamos el contador de recuperación
-            contadorRecuperacion++;
-            // Si alcanzamos el intervalo de regeneración
-            if (contadorRecuperacion >= FRAMES_REGEN_ENERGIA) {
-                // Regeneramos un punto de energía
-                mago.energiaMagica++;
-                // Reseteamos el contador
-                contadorRecuperacion = 0;
-            }
-        }
-    }
-
-    // **Método main**: punto de entrada del programa
+    // Punto de entrada del programa
     @SuppressWarnings("unused")
     public static void main(String[] args) {
-        // Creamos una instancia del juego para iniciarlo
-        Juego juego = new Juego();
+        Juego juego = new Juego(); // Crea e inicia el juego
     }
 }
