@@ -44,6 +44,7 @@ public class Hechizo {
 
     public void lanzar(Mago mago, double targetX, double targetY) {
         if (mago.energiaMagica < costoMagia) {
+            // Nota: Asegúrate de que mago.energiaMagica se inicialice con un valor suficiente en la clase Mago
             return;
         }
         mago.energiaMagica -= costoMagia;
@@ -131,4 +132,5 @@ public class Hechizo {
         } else if (nombre.equals("CENTELLA")) {
             entorno.dibujarImagen(imgHechizoLanzado, hechizoX, hechizoY, 0.0);
         }
-    }}
+    }
+}
